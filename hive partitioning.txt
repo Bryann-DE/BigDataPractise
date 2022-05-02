@@ -1,0 +1,59 @@
+Hive Partitioning
+
+
+---creating a new csv file---
+
+[root@sandbox-hdp ~]# hdfs dfs -put emp_data.csv /tmp/
+[root@sandbox-hdp ~]# hdfs dfs -get /tmp/emp_data.csv/
+get: `emp_data.csv': File exists
+[root@sandbox-hdp ~]# hdfs dfs -cat /tmp/emp_data.csv/
+1,'James',10,'UK'
+2,'Reece',12,'USA'
+3,'Bhatt',14,'India'
+4,'Minor',10,'UK'
+5,'Fort',13,'USA'
+6,'Luke',15,'India
+
+
+---create table schema in sql---
+
+create table if not exists emp_table(id int,name string,experience int,location string)
+. . . . . . . . . . . . . . . . . . . . . . .> row format delimited
+. . . . . . . . . . . . . . . . . . . . . . .> fields terminated by ','
+. . . . . . . . . . . . . . . . . . . . . . .> stored as textfile;
+
+load data local inpath '/tmp/emp_data.csv' into table emp_table;
+INFO  : OK
++---------------+-----------------+-----------------------+---------------------+
+| emp_table.id  | emp_table.name  | emp_table.experience  | emp_table.location  |
++---------------+-----------------+-----------------------+---------------------+
+| 1             | 'James'         | 10                    | 'UK'                |
+| 2             | 'Reece'         | 12                    | 'USA'               |
+| 3             | 'Bhatt'         | 14                    | 'India'             |
+| 4             | 'Minor'         | 10                    | 'UK'                |
+| 5             | 'Fort'          | 13                    | 'USA'               |
+| 6             | 'Luke'          | 15                    | 'India              |
+| NULL          | NULL            | NULL                  | NULL                |
+| NULL          | NULL            | NULL                  | NULL                |
+| NULL          | NULL            | NULL                  | NULL                |
++---------------+-----------------+-----------------------+---------------------+
+
+---create partitioned table---
+
+create table emp_table_partitioned
+. . . . . . . . . . . . . . . . . . . . . . .> (
+. . . . . . . . . . . . . . . . . . . . . . .> id int,
+. . . . . . . . . . . . . . . . . . . . . . .> name string,
+. . . . . . . . . . . . . . . . . . . . . . .> experience int
+. . . . . . . . . . . . . . . . . . . . . . .> )
+. . . . . . . . . . . . . . . . . . . . . . .> partitioned by (location string);
+
+
+---inserting data into partitioned table---
+
+insert overwrite table emp_table_partitioned
+. . . . . . . . . . . . . . . . . . . . . . .> partition(location)
+. . . . . . . . . . . . . . . . . . . . . . .> select * from emp_table;
+
+
+
