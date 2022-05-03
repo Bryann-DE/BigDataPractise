@@ -1,0 +1,240 @@
+1]
+--------//// Hive RegexSerDe.txt \\\\------
+
+---creating a new txt file---
+[root@sandbox-hdp ~]# hdfs dfs -put /root/regexfile.txt /tmp/
+[root@sandbox-hdp ~]# hdfs dfs -get /tmp/regexfile.txt/
+get: `regexfile.txt': File exists
+[root@sandbox-hdp ~]# hdfs dfs -cat /tmp/regexfile.txt/
+host1/amit@gmail
+host2/sumit@facebook
+host3/raghav@gmail
+host4/rohit@gmail
+
+---create table schema in sql---
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> CREATE TABLE userlog(
+. . . . . . . . . . . . . . . . . . . . . . .>  host string,
+. . . . . . . . . . . . . . . . . . . . . . .>  user_name string,
+. . . . . . . . . . . . . . . . . . . . . . .>  domain string
+. . . . . . . . . . . . . . . . . . . . . . .>  )
+. . . . . . . . . . . . . . . . . . . . . . .>  ROW FORMAT SERDE
+. . . . . . . . . . . . . . . . . . . . . . .>  'org.apache.hadoop.hive.contrib.serde2.RegexSerDe'
+. . . . . . . . . . . . . . . . . . . . . . .>  WITH SERDEPROPERTIES(
+. . . . . . . . . . . . . . . . . . . . . . .>  'input.regex' = '(.*)/(.*)@(.*)',
+. . . . . . . . . . . . . . . . . . . . . . .>  'output.format.string' = '%1$s %2$s %3$s');
+
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> load data inpath '/tmp/regexfile.txt' into table userlog;
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select * from userlog;
++---------------+--------------------+-----------------+
+| userlog.host  | userlog.user_name  | userlog.domain  |
++---------------+--------------------+-----------------+
+| host1         | amit               | gmail           |
+| host2         | sumit              | facebook        |
+| host3         | raghav             | gmail           |
+| host4         | rohit              | gmail           |
++---------------+--------------------+-----------------+
+
+
+2]
+--------//// Hive Partitioning \\\\------
+
+
+---creating a new csv file---
+
+[root@sandbox-hdp ~]# hdfs dfs -put emp_data.csv /tmp/
+[root@sandbox-hdp ~]# hdfs dfs -get /tmp/emp_data.csv/
+get: `emp_data.csv': File exists
+[root@sandbox-hdp ~]# hdfs dfs -cat /tmp/emp_data.csv/
+1,'James',10,'UK'
+2,'Reece',12,'USA'
+3,'Bhatt',14,'India'
+4,'Minor',10,'UK'
+5,'Fort',13,'USA'
+6,'Luke',15,'India
+
+
+---create table schema in sql---
+
+create table if not exists emp_table(id int,name string,experience int,location string)
+. . . . . . . . . . . . . . . . . . . . . . .> row format delimited
+. . . . . . . . . . . . . . . . . . . . . . .> fields terminated by ','
+. . . . . . . . . . . . . . . . . . . . . . .> stored as textfile;
+
+load data local inpath '/tmp/emp_data.csv' into table emp_table;
+INFO  : OK
++---------------+-----------------+-----------------------+---------------------+
+| emp_table.id  | emp_table.name  | emp_table.experience  | emp_table.location  |
++---------------+-----------------+-----------------------+---------------------+
+| 1             | 'James'         | 10                    | 'UK'                |
+| 2             | 'Reece'         | 12                    | 'USA'               |
+| 3             | 'Bhatt'         | 14                    | 'India'             |
+| 4             | 'Minor'         | 10                    | 'UK'                |
+| 5             | 'Fort'          | 13                    | 'USA'               |
+| 6             | 'Luke'          | 15                    | 'India              |
+| NULL          | NULL            | NULL                  | NULL                |
+| NULL          | NULL            | NULL                  | NULL                |
+| NULL          | NULL            | NULL                  | NULL                |
++---------------+-----------------+-----------------------+---------------------+
+
+---create partitioned table---
+
+create table emp_table_partitioned
+. . . . . . . . . . . . . . . . . . . . . . .> (
+. . . . . . . . . . . . . . . . . . . . . . .> id int,
+. . . . . . . . . . . . . . . . . . . . . . .> name string,
+. . . . . . . . . . . . . . . . . . . . . . .> experience int
+. . . . . . . . . . . . . . . . . . . . . . .> )
+. . . . . . . . . . . . . . . . . . . . . . .> partitioned by (location string);
+
+---inserting data into partitioned table---
+
+insert overwrite table emp_table_partitioned
+. . . . . . . . . . . . . . . . . . . . . . .> partition(location)
+. . . . . . . . . . . . . . . . . . . . . . .> select * from emp_table;
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select * from emp_table_partitioned;
+
++---------------------------+-----------------------------+-----------------------------------+---------------------------------+
+| emp_table_partitioned.id  | emp_table_partitioned.name  | emp_table_partitioned.experience  | emp_table_partitioned.location  |
++---------------------------+-----------------------------+-----------------------------------+---------------------------------+
+| 6                         | 'Luke'                      | 15                                | 'India                          |
+| 3                         | 'Bhatt'                     | 14                                | 'India'                         |
+| 1                         | 'James'                     | 10                                | 'UK'                            |
+| 4                         | 'Minor'                     | 10                                | 'UK'                            |
+| 2                         | 'Reece'                     | 12                                | 'USA'                           |
+| 5                         | 'Fort'                      | 13                                | 'USA'                           |
+| NULL                      | NULL                        | NULL                              | __HIVE_DEFAULT_PARTITION__      |
+| NULL                      | NULL                        | NULL                              | __HIVE_DEFAULT_PARTITION__      |
+| NULL                      | NULL                        | NULL                              | __HIVE_DEFAULT_PARTITION__      |
++---------------------------+-----------------------------+-----------------------------------+---------------------------------+
+
+
+3]
+--------//// ORDER BY & SORT BY \\\\------
+
+
+---ORDER BY---
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select * from customer_data where contact_num like '8%' order by customer_name;
++----------------------------+------------------------------+----------------------------+---------------------+------------------------+
+| customer_data.customer_id  | customer_data.customer_name  | customer_data.contact_num  | customer_data.city  | customer_data.country  |
++----------------------------+------------------------------+----------------------------+---------------------+------------------------+
+| 7                          | Hardik                       | 821320                     | Punjab              | India                  |
+| 5                          | Luke                         | 8212390                    | Crawley             | UK                     |
+| 4                          | Mike                         | 813190                     | Washington          | USA                    |
+| 3                          | Tom                          | 827190                     | London              | UK                     |
++----------------------------+------------------------------+----------------------------+---------------------+------------------------+
+
+---SORT BY---
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select * from customer_data where contact_num like '8%' sort by customer_name;
++----------------------------+------------------------------+----------------------------+---------------------+------------------------+
+| customer_data.customer_id  | customer_data.customer_name  | customer_data.contact_num  | customer_data.city  | customer_data.country  |
++----------------------------+------------------------------+----------------------------+---------------------+------------------------+
+| 7                          | Hardik                       | 821320                     | Punjab              | India                  |
+| 5                          | Luke                         | 8212390                    | Crawley             | UK                     |
+| 3                          | Tom                          | 827190                     | London              | UK                     |
+| 4                          | Mike                         | 813190                     | Washington          | USA                    |
++----------------------------+------------------------------+----------------------------+---------------------+------------------------+
+
+
+4]
+--------//// JSON SerDe.txt \\\\------
+
+---creating json file---
+
+[root@sandbox-hdp ~]# hdfs dfs -put jsonfile.json /tmp/
+[root@sandbox-hdp ~]# hdfs dfs -get /tmp/jsonfile.json
+get: `jsonfile.json': File exists
+[root@sandbox-hdp ~]# hdfs dfs -cat /tmp/jsonfile.json
+{"name":"Amit", "id":1, "skills":["Hadoop", "Python"]}
+{"name":"Sumit", "id":2, "skills":["Hadoop", "Hive"]}
+{"name":"Rohit", "id":3, "skills":["Oozie", "Python"]}
+
+
+---creating sql schema---
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> create table if not exists json_table
+. . . . . . . . . . . . . . . . . . . . . . .> (name string, id bigint, skills array<string>)
+. . . . . . . . . . . . . . . . . . . . . . .> ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+. . . . . . . . . . . . . . . . . . . . . . .> STORED AS TEXTFILE;
+
+---inserting data into table---
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> load data inpath '/tmp/jsonfile.json/' into table json_table;
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select * from json_table;
++------------------+----------------+----------------------+
+| json_table.name  | json_table.id  |  json_table.skills   |
++------------------+----------------+----------------------+
+| Amit             | 1              | ["Hadoop","Python"]  |
+| Sumit            | 2              | ["Hadoop","Hive"]    |
+| Rohit            | 3              | ["Oozie","Python"]   |
+| Rohit            | 3              | ["Oozie","Python"]   |
++------------------+----------------+----------------------+
+
+---querying data from table---
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select name, skills[0] from jason_table;
++--------+---------+
+|  name  |   _c1   |
++--------+---------+
+| Amit   | Hadoop  |
+| Sumit  | Hadoop  |
+| Rohit  | Oozie   |
+| Rohit  | Oozie   |
++--------+---------+
+
+
+
+
+5]
+--------//// BUCKETING \\\\------
+
+---creating a bucketed table---
+
+create table customer_data_bucketed(id int, name string, contact_num varchar(10),city string) 
+partitioned by (country string) 
+clustered by(name) 
+into 3 buckets;
+
+---overwriting data to it---
+
+ insert overwrite table customer_data_bucketed
+. . . . . . . . . . . . . . . . . . . . . . .> select * from customer_data;
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select * from customer_data_bucketed;
+
+----------------------------+
+| customer_data_bucketed.id  | customer_data_bucketed.name  | customer_data_bucketed.contact_num  | customer_data_bucketed.city  | customer_data_bucketed.country  |
++----------------------------+------------------------------+-------------------------------------+------------------------------+---------------------------------+
+| 7                          | Hardik                       | 821320                              | Punjab                       | India                           |
+| 1                          | Ahmed                        | 999913                              | Delhi                        | India                           |
+| 5                          | Luke                         | 8212390                             | Crawley                      | UK                              |
+| 3                          | Tom                          | 827190                              | London                       | UK                              |
+| 4                          | Mike                         | 813190                              | Washington                   | USA                             |
+| 6                          | Jamie                        | 124216                              | Massachussets                | USA                             |
+| 2                          | Rhea                         | 22314                               | Seattle                      | USA                             |
++----------------------------+------------------------------+-------------------------------------+------------------------------+---------------------------------+
+
+
+
+6]
+--------//// JOINS \\\\------
+
+0: jdbc:hive2://sandbox-hdp.hortonworks.com:2> select cd.customer_name,cd.contact_num,cl.name as city from customer_data cd
+. . . . . . . . . . . . . . . . . . . . . . .> inner join customer_location cl on (cd.city = cl.name);
+
++-------------------+-----------------+----------------+
+| cd.customer_name  | cd.contact_num  |      city      |
++-------------------+-----------------+----------------+
+| Ahmed             | 999913          | Delhi          |
+| Rhea              | 22314           | Seattle        |
+| Tom               | 827190          | London         |
+| Mike              | 813190          | Washington     |
+| Luke              | 8212390         | Crawley        |
+| Jamie             | 124216          | Massachussets  |
+| Hardik            | 821320          | Punjab         |
++-------------------+-----------------+----------------+
